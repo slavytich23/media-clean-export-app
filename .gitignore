@@ -1,0 +1,36 @@
+# Local runtime state
+settings.json
+AppData/
+*.log
+
+# Generated output and backups
+_media_clean_exports/
+_media_cleaner_backup_*/
+exports/
+output/
+.scratch/
+
+# Local binaries and archives
+tools/
+*.zip
+*.7z
+*.rar
+
+# Media files: do not upload private source files by accident
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.heif
+*.tif
+*.tiff
+*.webp
+*.mp4
+*.mov
+*.m4v
+
+# Windows/editor noise
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/

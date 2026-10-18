@@ -1,3 +1,3 @@
 @echo off
 set "SCRIPT=%~dp0MediaCleanExport.ps1"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%"
+powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File "%SCRIPT%"

@@ -1,9 +1,11 @@
 ﻿param(
-    [switch]$TestMode
+    [switch]$TestMode,
+    [switch]$NoShow
 )
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+[System.Windows.Forms.Application]::EnableVisualStyles()
 
 $ErrorActionPreference = 'Stop'
 
@@ -11,6 +13,8 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $profileCatalogPath = Join-Path $scriptRoot 'DeviceProfiles.json'
 $settingsDirectory = Join-Path $env:APPDATA 'MediaCleanExport'
 $settingsPath = Join-Path $settingsDirectory 'settings.json'
+. (Join-Path $scriptRoot 'VariantEngine.ps1')
+. (Join-Path $scriptRoot 'AppControls.ps1')
 
 $photoExtensions = @('.jpg', '.jpeg', '.png', '.heic', '.heif', '.tif', '.tiff', '.webp')
 $videoExtensions = @('.mp4', '.mov', '.m4v')
@@ -32,6 +36,9 @@ function Get-DefaultSettings {
         NeutralNames = $true
         FavoriteDeviceIds = @('apple-iphone-16-pro')
         LastOutputDirectory = ''
+        LastMode = 'Metadata'
+        Theme = 'Dark'
+        VariantOptions = Get-VariantDefaultOptions
     }
 }
 
@@ -59,6 +66,16 @@ function Load-Settings {
             $settings.FavoriteDeviceIds = @($stored.FavoriteDeviceIds | ForEach-Object { [string]$_ })
         }
         if ($stored.LastOutputDirectory) { $settings.LastOutputDirectory = [string]$stored.LastOutputDirectory }
+        if ($stored.LastMode -in @('Metadata', 'Variants')) { $settings.LastMode = [string]$stored.LastMode }
+        if ($stored.Theme -in @('Light', 'Dark')) { $settings.Theme = [string]$stored.Theme }
+        if ($stored.VariantOptions) {
+            foreach ($property in $settings.VariantOptions.PSObject.Properties) {
+                $savedProperty = $stored.VariantOptions.PSObject.Properties[$property.Name]
+                if ($null -ne $savedProperty) { $property.Value = $savedProperty.Value }
+            }
+            try { Test-VariantOptions $settings.VariantOptions }
+            catch { $settings.VariantOptions = Get-VariantDefaultOptions }
+        }
     } catch {
         # A damaged settings file must not prevent the application from opening.
         $settings = Get-DefaultSettings
@@ -671,31 +688,31 @@ $list.HideSelection = $false
 $list.BackColor = [System.Drawing.Color]::White
 $form.Controls.Add($list)
 
-$addButton = New-Object System.Windows.Forms.Button
+$addButton = New-Object MediaCleanExport.ThemedButton
 $addButton.Text = 'Добавить файлы'
 $addButton.Location = New-Object System.Drawing.Point(16, 332)
 $addButton.Size = New-Object System.Drawing.Size(132, 32)
 $form.Controls.Add($addButton)
 
-$folderButton = New-Object System.Windows.Forms.Button
+$folderButton = New-Object MediaCleanExport.ThemedButton
 $folderButton.Text = 'Добавить папку'
 $folderButton.Location = New-Object System.Drawing.Point(158, 332)
 $folderButton.Size = New-Object System.Drawing.Size(132, 32)
 $form.Controls.Add($folderButton)
 
-$clearButton = New-Object System.Windows.Forms.Button
+$clearButton = New-Object MediaCleanExport.ThemedButton
 $clearButton.Text = 'Очистить список'
 $clearButton.Location = New-Object System.Drawing.Point(300, 332)
 $clearButton.Size = New-Object System.Drawing.Size(132, 32)
 $form.Controls.Add($clearButton)
 
-$previewButton = New-Object System.Windows.Forms.Button
+$previewButton = New-Object MediaCleanExport.ThemedButton
 $previewButton.Text = 'Метаданные'
 $previewButton.Location = New-Object System.Drawing.Point(442, 332)
 $previewButton.Size = New-Object System.Drawing.Size(150, 32)
 $form.Controls.Add($previewButton)
 
-$openOutputButton = New-Object System.Windows.Forms.Button
+$openOutputButton = New-Object MediaCleanExport.ThemedButton
 $openOutputButton.Text = 'Открыть папку'
 $openOutputButton.Location = New-Object System.Drawing.Point(602, 332)
 $openOutputButton.Size = New-Object System.Drawing.Size(150, 32)
@@ -753,7 +770,7 @@ $deviceStatus.Location = New-Object System.Drawing.Point(192, 158)
 $deviceStatus.ForeColor = [System.Drawing.Color]::FromArgb(41, 125, 72)
 $deviceGroup.Controls.Add($deviceStatus)
 
-$favoriteToggleButton = New-Object System.Windows.Forms.Button
+$favoriteToggleButton = New-Object MediaCleanExport.ThemedButton
 $favoriteToggleButton.Text = '☆ В избранное'
 $favoriteToggleButton.Location = New-Object System.Drawing.Point(14, 153)
 $favoriteToggleButton.Size = New-Object System.Drawing.Size(166, 30)
@@ -896,7 +913,7 @@ $outputBox.Text = $settings.LastOutputDirectory
 }
 $videoGroup.Controls.Add($outputBox)
 
-$outputButton = New-Object System.Windows.Forms.Button
+$outputButton = New-Object MediaCleanExport.ThemedButton
 $outputButton.Text = 'Выбрать...'
 $outputButton.Location = New-Object System.Drawing.Point(800, 66)
 $outputButton.Size = New-Object System.Drawing.Size(88, 32)
@@ -905,7 +922,7 @@ $outputButton.FlatStyle = 'Flat'
 $outputButton.BackColor = [System.Drawing.Color]::White
 $outputButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(190, 200, 214)
 
-$processButton = New-Object System.Windows.Forms.Button
+$processButton = New-Object MediaCleanExport.ThemedButton
 $processButton.Text = 'Начать обработку'
 $processButton.Location = New-Object System.Drawing.Point(16, 762)
 $processButton.Size = New-Object System.Drawing.Size(220, 42)
@@ -915,13 +932,13 @@ $processButton.FlatStyle = 'Flat'
 $processButton.FlatAppearance.BorderSize = 0
 $form.Controls.Add($processButton)
 
-$retryRunButton = New-Object System.Windows.Forms.Button
+$retryRunButton = New-Object MediaCleanExport.ThemedButton
 $retryRunButton.Text = 'Повторить ошибки'
 $retryRunButton.Location = New-Object System.Drawing.Point(246, 762)
 $retryRunButton.Size = New-Object System.Drawing.Size(150, 42)
 $form.Controls.Add($retryRunButton)
 
-$cancelButton = New-Object System.Windows.Forms.Button
+$cancelButton = New-Object MediaCleanExport.ThemedButton
 $cancelButton.Text = 'Отменить'
 $cancelButton.Location = New-Object System.Drawing.Point(406, 762)
 $cancelButton.Size = New-Object System.Drawing.Size(120, 42)
@@ -935,7 +952,7 @@ $toolStatus.Location = New-Object System.Drawing.Point(548, 778)
 $toolStatus.ForeColor = if ($ffmpegPath -and $ffprobePath -and $exifToolPath) { [System.Drawing.Color]::FromArgb(41, 125, 72) } else { [System.Drawing.Color]::FromArgb(176, 48, 48) }
 $form.Controls.Add($toolStatus)
 
-$progress = New-Object System.Windows.Forms.ProgressBar
+$progress = New-Object MediaCleanExport.ThemedProgressBar
 $progress.Location = New-Object System.Drawing.Point(16, 816)
 $progress.Size = New-Object System.Drawing.Size(892, 20)
 $form.Controls.Add($progress)
@@ -1441,6 +1458,8 @@ $outputButton.Add_Click({
 function Set-ProcessingState {
     param([Parameter(Mandatory)] [bool]$Busy)
 
+    if ($variantTab) { $variantTab.Enabled = -not $Busy }
+
     foreach ($control in @(
         $addButton, $folderButton, $clearButton, $previewButton, $openOutputButton,
         $deviceBox, $profileSearchBox, $favoriteOnlyCheck, $favoriteToggleButton,
@@ -1616,5 +1635,7 @@ Update-FavoriteButton
 
 Add-Log "Готово. Выбран профиль: $($deviceProfiles[$defaultDeviceIndex].Display)."
 Add-Log 'Готово к работе. Галочка сохранения оригиналов применяется к фото и видео.'
-[void]$form.ShowDialog()
+. (Join-Path $scriptRoot 'VariantUI.ps1')
+. (Join-Path $scriptRoot 'AppTheme.ps1')
+if (-not $NoShow) { [void]$form.ShowDialog() }
 
